@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="referrer" content="strict-origin-when-cross-origin" />
+<title>YouTube relay</title>
+<style>
+	html, body { margin: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+	iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<!--
+	Relay page for the XENEON EDGE "YouTube" iCUE widget.
+	iCUE loads widgets from a local file, so YouTube refuses the embed (error 152/153)
+	because there is no web address to identify the embedder. Hosting this page on an
+	https site makes that site the embedder. It only forwards a video ID and player
+	options to youtube.com/embed and passes player messages back and forth.
+-->
+<iframe id="yt" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+<script>
+(function () {
+	var params = new URLSearchParams(location.search);
+	var path = params.get('path') || '';
+	params.delete('path');
+	if (!/^[A-Za-z0-9_-]{6,20}$/.test(path)) path = '';
+
+	// Only pass through known YouTube player options.
+	var allowed = ['enablejsapi', 'autoplay', 'mute', 'controls', 'playsinline', 'rel', 'iv_load_policy', 'fs', 'hl', 'start', 'loop', 'playlist', 'list'];
+	var q = new URLSearchParams();
+	allowed.forEach(function (k) { if (params.has(k)) q.set(k, params.get(k).slice(0, 2000)); });
+	q.set('origin', location.origin);
+
+	var frame = document.getElementById('yt');
+	frame.src = 'https://www.youtube.com/embed/' + path + '?' + q.toString();
+
+	window.addEventListener('message', function (e) {
+		if (e.source === frame.contentWindow) {
+			if (/^https:\/\/(www\.)?youtube\.com$/.test(e.origin) && window.parent !== window) window.parent.postMessage(e.data, '*');
+		} else if (e.source === window.parent) {
+			frame.contentWindow.postMessage(e.data, 'https://www.youtube.com');
+		}
+	});
+})();
+</script>
+</body>
+</html>
